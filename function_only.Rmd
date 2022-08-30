@@ -511,8 +511,7 @@ fill_update_mu <- function(y, sigma, c, curr_tree){
   var_vec <- NULL
   # Update each mean and variance, since they are iid distributed, I can generate them together by using mvtnorm function and setting the covariance matrix as diagonal.
   for (i in 1:length(ni)) {
-    mean_vec[i] <- (sum(y[curr_tree$node==names(ni)[i]])) /
-                   (ni[i] + c )
+    mean_vec[i] <- (sum(y[curr_tree$node==names(ni)[i]])) / (ni[i] + c )
     var_vec[i] <- sigma / (ni[i] + c )
   }
   
@@ -684,7 +683,6 @@ train_bart <- function(x, y, num_trees = 1, # number of trees
     
     # This is a proposed tree, but we need to figure out whether we should use this tree.
     new_tree <- update_tree(x,y, type = type, curr_tree = curr_tree, node_min_size = node_min_size)
-    new_tree <- fill_tree_details(new_tree, x)
     
     
     # New tree, compute the log of marginalized likelihood plus the log of the tree prior
@@ -790,12 +788,51 @@ sim_y <- sim_dat[,1]
 ```
 # 14. In Sample Prediction Result
 ```{r warning=FALSE}
-sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 3, c = 0.001, alpha_sig = 10, beta_sig = 4), control = list(node_min_size = 100))
+sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 2000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.001, alpha_sig = 10, beta_sig = 4), control = list(node_min_size = 100))
 pred_y_mean_all <- apply(sim_res$prediction, 2, mean)
 plot(sim_y, type = "p", col = "blue", lwd = 2, ylim = c(-6, 15), pch = 19)
 lines(pred_y_mean_all, type = "p", col = "red", pch = 19)
 legend("topleft",c("Posterior Mean","Real Data"), col = c("red","blue"), lty = c(1,1))
 plot(sim_res$num_node, type = 'l')
 plot(sim_res$log_mar_tree, type = 'l')
+
+```
+
+# 15. Comparing with Rpart
+
+```{r}
+library(rpart)
+rmod <- rpart(y~., data = sim_dat)
+yhat_rpart <- predict(rmod, sim_dat[,2:3])
+
+par(mfrow = c(1,2))
+#plot(yhat_rpart, type = 'p', pch = 19, col = "red")
+#lines(pred_y_mean_all, type = 'p', pch = 18, col = "blue")
+#legend("topright", c("rpart","cart"), pch = c(19,18), col = c("red","blue"))
+
+
+plot(x = yhat_rpart, y = true_mean, type = 'p', pch = 19, col = "red")
+plot(x = pred_y_mean_all, y = true_mean, type = 'p', pch = 18, col = "blue")
+
+res_rpart <- (sim_dat[,1] - yhat_rpart)^2
+res_cart <- (pred_y_mean_all - sim_dat[,1])^2
+plot(res_rpart, type = 'p', pch = 19, col = "red", ylim = c(-0.1,60))
+lines(res_cart, type = 'p', pch = 18, col = "blue")
+legend("topright", c("rpart","cart"), pch = c(19,18), col = c("red","blue"))
+sum(res_rpart)
+sum(res_cart)
+
+
+```
+
+# 15. Comparing with rbart
+
+```{r}
+library(rbart)
+bart_res <- rbart(sim_x, sim_y, ntree = 1, nskip = 200, ndpost = 2000, k = 2, power = 2, base = 0.95)
+bart_predict <- predict(bart_res, sim_x)$mmean
+plot(x = bart_predict, y = true_mean)
+res_bart <- (bart_predict-sim_y)^2
+matrix(c(sum(res_bart), sum(res_cart), sum(res_rpart)), ncol = 3)
 
 ```

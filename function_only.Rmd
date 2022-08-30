@@ -1,54 +1,14 @@
 ---
-title: "CART Coding"
-author: "Qi Wang"
-date: "2022/7/18"
+title: "Only Functions"
+author: "Qi"
+date: '2022-08-30'
 output: pdf_document
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-Here are some coding tricks I learned from the code in this website https://github.com/ebprado/MOTR-BART/blob/master/MOTR%20BART%20paper/MOTR_BART.R .
-
-# 1."vector" Function
-
-This function is useful when using vector('list', length = 2). This will create a list like vector but we don't need the "$" to subtract the elements in this vector. Instead, we use "[[x]]", this will become more convenient to store some values especially when multiple indexes of an observation is stored. For example:
 ```{r}
-a <- vector('list', 3)
-a[[1]] <- c(1,1,2,3,4)
-a[[2]] <- matrix(c(4,4,5,6),2,2)
-a[[3]] <- array( c(7,7,8,9,0,1), c(2,2,2))
-```
-This is actually like a vector of all kinds of things including matrices or arrays. When I want to get the first part of information, I may use:
-```{r}
-a[[1]]
-```
-When I want to get the second part of information, I may use:
-```{r}
-a[[2]]
-```
-However, when I want to get the information of the matrix which is the second element of the whole vector, I will use this:
-
-```{r}
-a[[2]][1,1]
-a[[2]][1,]
-```
-This is how "vector" function works in this code, which is a very important function.
-
-# 2.Create a function that stores stump information for each Tree
-
-This step is to keep track of whether this node is a terminal node, it is just a stump model so it only store information for one node. Here, we create a information box for all trees.
-
-```{r}
-num_trees <- 5
-x1 <- rnorm(1000, mean = 9, sd = 3)
-x2 <- rnorm(1000, mean = 30, sd = 10)
-y <- rnorm(1000, mean = 2*x1 + 3*x2, sd = 1)
-x <- cbind(x1, x2)
+rm(list = ls())
 ```
 
-
+# 1, Creat Stump
 ```{r}
 create_stump <- function(x, y, num_trees = 1){
 
@@ -83,29 +43,7 @@ return(all_tree)
 }
 ```
 
-
-# 3. Create a function to update trees in the M-H step.
-
-## 3.1 "Switch" Function
-
-This function is like choosing different directions of the result. For example,
-
-```{r}
-switch (1,"A","B","C")
-switch (2,"A","B","C")
-switch (3,"A","B","C")
-```
-However, in this code, the first argument can also be a string, for example,
-```{r}
-switch ("A", "A" = 4, "B" = 5, "C" = "Hello World")
-switch ("B", "A" = 4, "B" = 5, "C" = "Hello World")
-switch ("C", "A" = 4, "B" = 5, "C" = "Hello World")
-```
-
-## 3.2 Updating Tree
-
-Therefore, we can simply use this function to create a tree update function, which depends on the method of the decision. If the method of updating is "grow", then we will grow the tree, and so on. So the update function should have the shape like this:
-
+# 2. Update Tree
 ```{r}
 update_tree <- function(x, y, type = c("grow", # For growing the existing tree
                                        "prune", # For merging one pair of the terminal node
@@ -125,43 +63,7 @@ update_tree <- function(x, y, type = c("grow", # For growing the existing tree
                                        }
 ```
 
-Then we have to figure our how to grow, prune, change or swap a tree.
-
-
-# 4. Grow Tree Function
-
-
-## 4.1 Quick Notes(R trick)
-
-1. We can quickly get the elements corresponding to some categories by using the "==", just a[ xx == yy ] if a is a vector. No need to use a[which[xx == yy]].
-
-```{r}
-c(1,2,3,4,5,6)[c(T,F,T,F,T,F)]
-
-```
-
-2. We can quickly pick out one column with the column name if the matrix has a column name.
-
-```{r}
-A <- matrix(c(1,2,3,4), 2,2, byrow = TRUE)
-colnames(A) <- c("A", "B")
-A
-A[,"A"]
-A[,"B"]
-```
-3. We can use "any" function to judge whether there exists something that satisfies our expectation, for example,
-
-```{r}
-if(any(c(1,2,3)>1)){print("Exist one value bigger than 1")}
-
-if(any(c(1,2,3)<=1)){print("Exist one value smaller than or equal to 1")}
-```
-
-## 4.2 Grow Tree Function
-
-
-
-We first get the available terminal nodes list which can grow, then get the available rules that we can use, then select the spliting variables and rules uniformly.
+# 3. Grow Tree
 
 ```{r}
 grow_tree <- function(x, y, curr_tree, node_min_size){
@@ -245,85 +147,7 @@ grow_tree <- function(x, y, curr_tree, node_min_size){
 }
 ```
 
-# 5. Fill Detailed Tree Function
-
-Even if we have updated the tree information, we haven't updated the nodes that the observation belongs to, i.e., new_tree$node. In this section, we create a function to fill the tree details. Also, we update the node size.
-
-```{r}
-fill_tree_details <- function(curr_tree, x){
-  
-  # Collect old information from the tree
-  tree_info <- curr_tree$info
-  
-  # Create a new matrix to overwrite the information
-  new_tree_info <- tree_info
-  
-  # Start with default node
-  node <- rep(1, nrow(x))
-  
-  # Get the number of observations falling in each node.
-  # But we don't need the first node, because it's the root so all the observations will fall into the root node.
-  
-    for (i in 2:nrow(tree_info)) {
-    
-    #Get the parent
-    curr_parent <- as.numeric(tree_info[i,"parent"])
-    
-    #Get the splitting variable and splitting value
-    split_var <- as.numeric(tree_info[curr_parent, "split_variable"])
-    split_val <- as.numeric(tree_info[curr_parent, "split_value"])
-    direction <- ifelse(tree_info[curr_parent, "child_L"] == i, "L", "R")
-    if(direction == "L"){
-      # if the direction is the left, then it should use "smaller than" to confirm that this observation belongs to this group.
-      # x[node == curr_parent,] selects the observations who belongs to the parent node.
-      # Be careful that the "node" updated every time in the loop! 
-      # The node now haven't been updated, so it describes the category that this observation belongs to before we split. 
-      #So it's reasonable to say node == curr_parent because we need to filter among all the nodes belonging to this parent.
-      new_tree_info[i, "node_size"] <- sum(x[node == curr_parent, split_var] < split_val)
-      # This step we update the node indices for the i th row. So we now only update those who belongs to new indices i, i here is the actually the order of the node.
-      node[node == curr_parent][x[node == curr_parent, split_var]<split_val] <- i
-    }else{
-      
-      #Same as left, but change the inequality direction
-      new_tree_info[i, "node_size"] <- sum(x[node == curr_parent, split_var] >= split_val)
-      node[node == curr_parent][x[node == curr_parent, split_var] >= split_val] <- i
-      
-    }
-    
-  }
-  
-  return(list(info = new_tree_info, node = node))
-  
- 
-}
-```
-
-
-##  Testing for Code from part 1-5
-
-```{r}
-tree <- create_stump(x,y)[[1]]
-
-
-tree_up_1 <- update_tree(x,y,type = "grow", curr_tree = tree, node_min_size = 10)
-
-tree_up_2 <- update_tree(x,y,type =  "grow", curr_tree = tree_up_1, node_min_size = 10)
-
-tree_up_3 <- update_tree(x,y, type = "grow", curr_tree = tree_up_2, node_min_size = 10)
-
-print(tree)
-
-print(tree_up_1)
-
-print(tree_up_2)
-
-print(tree_up_3)
-```
-
-# 6. Prune Tree Function
-
-## 6.1 Coding for Prune Tree Function
-In this section, we are going to write some function that prunes a tree, i.e., merge two terminal nodes who has the same parent.
+# 4. Prune Tree
 
 ```{r}
 prune_tree <- function(x, y, curr_tree){
@@ -404,40 +228,9 @@ prune_tree <- function(x, y, curr_tree){
 }
 ```
 
-## 6.2 Testing for Prune Tree Function
+ 
+# 5. Change Tree
 
-```{r}
-prune_tree(x, y, tree_up_2)
-```
-# 7. Changing Tree
-
-
-## 7.1 Preparation
-
-### 7.1.1 R Coding Tricks - Recursive
-
-In this function, we need to get the children of a parent, and then get the children of the children, which sounds very complicated. However, there is a kind of function in coding, that allows functions to call themselves again and agian, called "recursive" function. For further information, refer to: https://www.datamentor.io/r-programming/recursion/ .
-
-Here are some examples for this kind of function:
-
-```{r}
-recursive_fac <- function(a){
-  
-  if(a == 0) {return(1)}
-  if(a != 0) {return(a * recursive_fac(a-1))}
-  
-}
-
-recursive_fac(5)
-factorial(5)
-```
-
-
-
-
-### 7.1.2 Preparation Function: Get Children
-
-So if we changed one parent splitting variable and splitting rule, all the children and grandchildren and so on will be affected. We should corrected the affected childrens. So we have to use a function to get the children and the list of the childrens. Recursive function is a good way to achieve this. 
 
 ```{r}
 get_children <- function(tree_info, parent){
@@ -457,32 +250,7 @@ get_children <- function(tree_info, parent){
   
 }
 ```
-```{r}
-tree_up_3
-get_children(tree_up_3$info, 1)
-```
 
-### 7.1.3 New Function - "Match"
-
-"Match" is a function that look for which elements of the second vector match the first vector. For example:
-
-```{r}
-match(1, c(2,3,4,1))
-```
-It shows that the fourth element of the second vector match the first vector , 1.
-
-```{r}
-match(c(1,2), c(2,3,4,5,1))
-```
-This shows that the fifth element in the vector is 1, and the first  matches 2.
-
-Also, it can be written as A %in% B. If elements of A is in B, then it will return TRUE, otherwise FALSE.
-
-
-
-
-
-## 7.2 Coding for Changing Tree
 ```{r}
 change_tree <- function(x, y, curr_tree, node_min_size){
   
@@ -553,19 +321,10 @@ change_tree <- function(x, y, curr_tree, node_min_size){
 }
 ```
 
-## 7.3 Check the Code
-
-```{r}
-change_tree(x,y,tree_up_1, node_min_size = 10)
-change_tree(x,y,tree_up_2, node_min_size = 10)
-change_tree(x,y,tree_up_3, node_min_size = 10)
-```
-
-# 8. Swap the Tree Function
 
 
-## 8.1 Swap the Tree Function
-In the swap setting, we swap two neighboring internal nodes around their split values and split variables, so we have to find the neighbouring internal nodes, then switch the splitting rules.
+
+# 6. Swap Tree
 
 ```{r}
 swap_tree <- function(x, y, curr_tree, node_min_size){
@@ -636,62 +395,85 @@ swap_tree <- function(x, y, curr_tree, node_min_size){
   
 }
 ```
-## 8.2 Testing Swap Function
 
+
+
+# 7. Fill Tree Details
 ```{r}
-tree_up_4 <- grow_tree(x,y,tree_up_3, node_min_size = 10)
-swap_tree(x,y,curr_tree = tree_up_4, node_min_size = 10)
+fill_tree_details <- function(curr_tree, x){
+  
+  # Collect old information from the tree
+  tree_info <- curr_tree$info
+  
+  # Create a new matrix to overwrite the information
+  new_tree_info <- tree_info
+  
+  # Start with default node
+  node <- rep(1, nrow(x))
+  
+  # Get the number of observations falling in each node.
+  # But we don't need the first node, because it's the root so all the observations will fall into the root node.
+  
+    for (i in 2:nrow(tree_info)) {
+    
+    #Get the parent
+    curr_parent <- as.numeric(tree_info[i,"parent"])
+    
+    #Get the splitting variable and splitting value
+    split_var <- as.numeric(tree_info[curr_parent, "split_variable"])
+    split_val <- as.numeric(tree_info[curr_parent, "split_value"])
+    direction <- ifelse(tree_info[curr_parent, "child_L"] == i, "L", "R")
+    if(direction == "L"){
+      # if the direction is the left, then it should use "smaller than" to confirm that this observation belongs to this group.
+      # x[node == curr_parent,] selects the observations who belongs to the parent node.
+      # Be careful that the "node" updated every time in the loop! 
+      # The node now haven't been updated, so it describes the category that this observation belongs to before we split. 
+      #So it's reasonable to say node == curr_parent because we need to filter among all the nodes belonging to this parent.
+      new_tree_info[i, "node_size"] <- sum(x[node == curr_parent, split_var] < split_val)
+      # This step we update the node indices for the i th row. So we now only update those who belongs to new indices i, i here is the actually the order of the node.
+      node[node == curr_parent][x[node == curr_parent, split_var]<split_val] <- i
+    }else{
+      
+      #Same as left, but change the inequality direction
+      new_tree_info[i, "node_size"] <- sum(x[node == curr_parent, split_var] >= split_val)
+      node[node == curr_parent][x[node == curr_parent, split_var] >= split_val] <- i
+      
+    }
+    
+  }
+  
+  return(list(info = new_tree_info, node = node))
+  
+ 
+}
 ```
 
 
+# 8. Log Likelihood Function
 
-
-
-# 9. Full Conditional Distribution
-
-Since the distribution of the tree is not in a closed form, we need to get the exact value of the $p(Tree|others)$. But we can get a proportional number to use the MH steps. Before getting the code to calculate the tree full conditional, the other parameters could be presented in a closed form as follows.
-
-
-This model can be described as follows:
-
-$$Y_{ij} \sim^{i.i.d}N(\mu_i, \sigma_i^2)$$
-where $\mu_i$ is the mean of the $i^{th}$ terminal node, and the $\sigma_i^2$ is the variance of the $i^{th}$ terminal node. We can further set the model as follows:
-
-$$\mu_i \sim^{i.i.d}N(\theta, \tau_{\mu}), \ \ \ \ \sigma_i \sim^{ind}IG(a_i, b_i)$$
-However, we can also set a flat prior on $\mu_i$ and $\sigma_i$ as follows:
-
-$$p(\mu_i, \sigma_i^2) \propto \frac{1}{\sigma_i^2}$$
-Actually, we can further set a hierarchical model and put priors on $\theta$, $\tau_\mu$ and other parameters. But here we just set them as hyperparameters and fixed.
-
-
-Therefore, the posterior distribution of each parameter can be presented as follows if the tree structure is given:
-
-$$p(\mu_i|others)\propto exp(-\frac{\sum_{j=1}^{n_i}(y_{ij}-\mu_i)^2}{2\sigma_i^2}-\frac{(\mu_i-\theta)^2}{2\tau_\mu^2})\propto exp \left( -\frac{1}{2} \left( (\frac{n_i}{\sigma_i^2} + \frac{1}{\tau_\mu^2})\mu_i^2-2\mu_i( \frac{\sum_{j=1}^{n_i}y_{ij}}{\sigma_i^2}+\frac{\theta}{\tau_\mu^2})     \right) \right)$$
-
-$$\mu_i \sim N(\frac{\frac{\sum_{j=1}^{n_i}y_{ij}}{\sigma_i^2}+\frac{\theta}{\tau_\mu^2}}{\frac{n_i}{\sigma_i^2} + \frac{1}{\tau_\mu^2}}, \frac{1}{\frac{n_i}{\sigma_i^2} + \frac{1}{\tau_\mu^2}})$$
-For $\sigma_i^2$:
-
-$$p(\sigma_i^2|others)\propto (\sigma_i^2)^{-\frac{n_i}{2}}exp(-\frac{\sum_{j=1}^{n_i}(y_{ij}-\mu_i)^2}{2}(\sigma_i^2)^{-1})\times(\sigma_i^2)^{-a_i+1}exp(-\frac{1}{b_i}(\sigma_i^2)^{-1})$$
-$$\sigma_i^2 \sim IG(\frac{n_i}{2}+a_i, \frac{\sum_{j=1}^{n_i}(y_{ij}-\mu_i)^2}{2}+b_i)$$
-Here is the case that I regard only $\mu_i$ and $\sigma_i$ as unknown parameters. If we further assume all $\sigma_i^2$ are equal to each other, and $\theta=0$, the full conditional posterior of $\mu_i$ and $\sigma^2$ become:
-
-$$\mu_i \sim N(\frac{\frac{\sum_{j=1}^{n_i}y_{ij}}{\sigma_i^2}}{\frac{n_i}{\sigma_i^2} + \frac{1}{\tau_\mu^2}}, \frac{1}{\frac{n_i}{\sigma_i^2} + \frac{1}{\tau_\mu^2}})$$
-
-If we use a reparameterization that $\tau_\mu^2 = \frac{\sigma^2}{a}$, the distribution could be written as:
-
-
-$$\mu_i \sim N(\frac{\sum_{i=1}^{n_i}y_{ij}}{n_i+a}, \frac{\sigma_i^2}{n_i+a})$$
-
-$$\sigma^2 \sim IG(\frac{N}{2}+a, \frac{\sum_{i=1}^I\sum_{j=1}^{n_i}(y_{ij}-\mu_i)^2}{2}+b)$$
-
-
-
-
-
-
-
-
-
+```{r}
+get_like <- function(curr_tree, x, y, sigma){
+  
+  # Find which node is terminal node and find its mean
+  
+  terminal_node <- which(as.numeric(curr_tree$info[,"terminal"])==1)
+  terminal_mean <- curr_tree$info[terminal_node, "mu"]
+  
+  res <- 0
+  
+  for (i in 1:length(terminal_node)) {
+    
+    group_index <- which(curr_tree$node == terminal_node[i])
+    res <- res + sum(dnorm(y[group_index], mean = terminal_mean[i], sd = sqrt(sigma), log = TRUE))
+    
+  }
+  
+  return(res)
+  
+  
+}
+```
+# 9. Tree Marginal Function
 ```{r}
 tree_marginal <- function(tree, x, y, c, alpha_sig, beta_sig){
   # Calculate the marginal distribution for the tree to get a sample from.
@@ -715,9 +497,8 @@ tree_marginal <- function(tree, x, y, c, alpha_sig, beta_sig){
   Log_mar <- part1 + part2
   return(Log_mar)
 }
-```
-
-
+``` 
+# 10. Sample Mu and Sigma 
 ```{r}
 # Since the distribution of mu and sigma are conjugate, we can directly sample from the posterior distribution.
 # This is a function that sample the mean of each terminal node as a vector together.
@@ -756,13 +537,7 @@ sample_sigma <- function(y, mu, alpha_sig, beta_sig, tree, c){
   return(sigma_update)
 }
 ```
-
-# 10. Get the prior distribution of the tree p(tree)
-
-Remember that the splitting probability can be written as:
-
-$$\alpha(1+d)^{-\beta}$$
-
+# 11. Tree Prior Function
 ```{r}
 get_tree_prior <- function(tree, alpha, beta){
   # First, we need to work the depth of the tree
@@ -801,10 +576,7 @@ get_tree_prior <- function(tree, alpha, beta){
   
   
 ```
-
-
-# 11. Train the Model
-
+# 12. Main Function
 ```{r}
 train_bart <- function(x, y, num_trees = 1, # number of trees
                        control = list(node_min_size = 5), # control the minimum terminal node size
@@ -992,50 +764,7 @@ train_bart <- function(x, y, num_trees = 1, # number of trees
   
 }
 ```
-
-```{r}
-get_like <- function(curr_tree, x, y, sigma){
-  
-  # Find which node is terminal node and find its mean
-  
-  terminal_node <- which(as.numeric(curr_tree$info[,"terminal"])==1)
-  terminal_mean <- curr_tree$info[terminal_node, "mu"]
-  
-  res <- 0
-  
-  for (i in 1:length(terminal_node)) {
-    
-    group_index <- which(curr_tree$node == terminal_node[i])
-    res <- res + sum(dnorm(y[group_index], mean = terminal_mean[i], sd = sqrt(sigma), log = TRUE))
-    
-  }
-  
-  return(res)
-  
-  
-}
-```
-
-
-
-
-# 12. Simulated Data Set
-
-A same simulated model as the paper presented was as follows:
-
-$$Y =f(X_1, X_2)+2\epsilon ,\ \epsilon \sim N(0,1)$$
-$$f(X_1, X_2)=\left \{
-\begin{array}{l} \
-8.0 \ \ if \ \ X_1 \leq5.0 \ and\ X_2 \in \{A,B\}  \\
-2.0 \ \ if \ \ X_1 >5.0 \ and\ X_2 \in \{A,B\}  \\
-1.0 \ \ if \ \ X_1 \leq3.0 \ and\ X_2 \in \{C,D\}  \\
-5.0 \ \ if \ \ 3.0<X_1 \leq7.0 \ and\ X_2 \in \{C,D\}  \\
-8.0 \ \ if \ \ X_1 >7.0 \ and\ X_2 \in \{C,D\}  \\
-\end{array}
-\right.$$
-
-Let $X_1$ be the sequence from 0.1 to 10, with a break of 0.1, 100 in total. Let $X_2$ be a repeated uniform random sample from ${A,B,C,D}$.
-
+# 13. Simulated Dataset
 ```{r}
 set.seed(0)
 x_grid <- seq(from = 0.5, to = 9.5, by = 1)
@@ -1059,154 +788,14 @@ sim_x <- model.matrix(~ -1 + sim_dat[,2]+sim_dat[,3])
 sim_y <- sim_dat[,1]
 
 ```
-
-
-# 13. Simulated Prediction
-
+# 14. In Sample Prediction Result
 ```{r warning=FALSE}
-sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 1, c = 0.01, alpha_sig = 10, beta_sig = 4), control = list(node_min_size = 100))
-```
-
-
-```{r}
+sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 1, c = 0.001, alpha_sig = 10, beta_sig = 4), control = list(node_min_size = 100))
 pred_y_mean_all <- apply(sim_res$prediction, 2, mean)
-
-plot(sim_y, type = "p", col = "blue", lwd = 2, ylim = c(-6, 15))
-lines(pred_y_mean_all, type = "p", col = "red", lwd = 2)
+plot(sim_y, type = "p", col = "blue", lwd = 2, ylim = c(-6, 15), pch = 19)
+lines(pred_y_mean_all, type = "p", col = "red", pch = 19)
 legend("topleft",c("Posterior Mean","Real Data"), col = c("red","blue"), lty = c(1,1))
 plot(sim_res$num_node, type = 'l')
 plot(sim_res$log_mar_tree, type = 'l')
-```
-
-It seems that due to the big residual I added, the overall trend of y is not so obvious, however, I changed the residual to have a normal with mean 0 and var 0.01 and tried again, the result is as follows.
-
-
-# 14. Compare with rpart(All Data Included as Train Set)
-
-In this section, I am going to compare the prediction squared error with the rpart function.
-
-```{r}
-library(rpart)
-rmod <- rpart(y~., data = sim_dat)
-yhat_rpart <- predict(rmod, sim_dat[,2:3])
-
-par(mfrow = c(1,2))
-#plot(yhat_rpart, type = 'p', pch = 19, col = "red")
-#lines(pred_y_mean_all, type = 'p', pch = 18, col = "blue")
-#legend("topright", c("rpart","cart"), pch = c(19,18), col = c("red","blue"))
-
-
-plot(x = yhat_rpart, y = true_mean, type = 'p', pch = 19, col = "red")
-plot(x = pred_y_mean_all, y = true_mean, type = 'p', pch = 18, col = "blue")
-```
-
-
-```{r}
-res_rpart <- (sim_dat[,1] - yhat_rpart)^2
-res_cart <- (pred_y_mean_all - sim_dat[,1])^2
-plot(res_rpart, type = 'p', pch = 19, col = "red", ylim = c(-0.1,60))
-lines(res_cart, type = 'p', pch = 18, col = "blue")
-legend("topright", c("rpart","cart"), pch = c(19,18), col = c("red","blue"))
-sum(res_rpart)
-sum(res_cart)
-```
-# 15. Result of rbart Package
-
-```{r}
-library(rbart)
-bart_res <- rbart(sim_x, sim_y, ntree = 1, nskip = 200, ndpost = 2000, k = 2, power = 2, base = 0.95)
-bart_predict <- predict(bart_res, sim_x)$mmean
-plot(x = bart_predict, y = true_mean)
-res_bart <- (bart_predict-sim_y)^2
-matrix(c(sum(res_bart), sum(res_cart), sum(res_rpart)), ncol = 3)
 
 ```
-
-
-
-
-# 16. Out of Sample Prediction of CART
-
-Here, we are going to use the result of the bart function to predict the out of sample observations. 800 of the data was randomly selected as train set and the rest as validation set.
-
-
-
-```{r}
-tr.index <- sample(size = 800, 1:1000, replace = FALSE)
-x.tr <- sim_x[tr.index,]
-x.va <- sim_x[-tr.index,]
-y.tr <- sim_y[tr.index]
-y.va <- sim_y[-tr.index]
-cv.bart <- train_bart(x.tr, y.tr, mcmc_par = list(iter = 5000, burn = 200, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.1, alpha_sig = 1, beta_sig = 1, control = list(node_min_size = 50)))
-
-
-pred_y_mean_in <- apply(cv.bart$prediction, 2, mean)
-
-plot(y.tr, type = "p", col = "blue", lwd = 2, ylim = c(-6, 15))
-lines(pred_y_mean_in, type = "p", col = "red", lwd = 2)
-legend("topleft",c("Posterior Mean","Real Data"), col = c("red","blue"), lty = c(1,1))
-```
-
-```{r}
-bart_oo_pred<- function(bart_result, x.va){
-  
-  store_size <- length(bart_result$tree)
-  xva.scaled <- x.va
-  center_y <- bart_result$center_y
-  scale_y <- bart_result$scale_y
-  for (j in 1:ncol(x.va)) {
-     xva.scaled[,j] <- (x.va[,j]-bart_result$center_x[j])/bart_result$scale_x[j]
-  }
- 
-  pred <- matrix(NA, nrow = store_size, ncol = nrow(x.va))
-  for (i in 1:store_size) {
-    curr_tree <- bart_result$tree[[i]]
-    curr_sig <- bart_result$sigma2_scaled[i]
-    all_mu <- curr_tree$info[,"mu"]
-    pred_node <- fill_tree_details(curr_tree, xva.scaled)$node
-    pred_mean <- all_mu[pred_node]
-    pred_scaled <- rnorm(n = nrow(x.va), mean = pred_mean, sd = sqrt(curr_sig))
-    pred[i,] <- pred_scaled * scale_y + center_y
-    
-    
-  }
-  
-  return(pred)
-  
-  
-}
-  
-  
-```
-```{r}
-oo_pred <- bart_oo_pred(cv.bart, x.va)
-pos_oo_mean <- apply(oo_pred, 2, mean)
-
-plot(y.va, col = "blue", pch = 19)
-lines(pos_oo_mean, col = "red", pch = 19, type = "p")
-
-
-```
-
-# 17. Out of Sample Prediction of Rpart
-
-
-```{r}
-tr_dat <- as.data.frame(cbind(y.tr, x.tr))
-colnames(tr_dat) <- c("y","x1","A","B","C","D")
-colnames(x.va) <- c("x1","A","B","C","D")
-cv_mod <- rpart(y ~., data = tr_dat)
-rpart_pred <- predict(cv_mod, newdata = as.data.frame(x.va))
-
-plot(rpart_pred, type='p', col = "blue", pch = 19, ylim = c(-10,20))
-lines(pos_oo_mean, col = "red", pch = 19, type = "p")
-lines(y.va, col = "green", pch = 19, type = "p")
-legend("topright", c("CART","RPART","REAL"), col = c("red","blue","green"), pch = c(19,19,19))
-pred_err_rpart <- sum((rpart_pred-y.va)^2)
-pred_err_cart <- sum((pos_oo_mean-y.va)^2)
-paste("pred_err_cart = ",pred_err_cart)
-paste("pred_err_rpart = ",pred_err_rpart)
-```
-
-
-

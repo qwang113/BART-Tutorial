@@ -526,13 +526,13 @@ sample_sigma <- function(y, mu, alpha_sig, beta_sig, tree, c){
   
   # Get the posterior parameters for the inverse gamma distribution
   ni <- table(tree$node)
-  alpha <- length(y)/2 + length(ni)/2 + alpha_sig
+  param1 <- length(y)/2 + length(ni)/2 + alpha_sig
   SS <- NULL
   for (i in 1:length(ni)) {
     SS[i] <- sum((y[tree$node==ni[i]]-mu[i])^2)
   }
-  beta <- sum(SS)/2 + c*sum(mu^2)/2 + beta_sig
-  sigma_update <- 1/rgamma(1, shape = alpha, rate = beta)
+  param2 <- sum(SS)/2 + c*sum(mu^2)/2 + beta_sig
+  sigma_update <- 1/rgamma(1, shape = param1, rate = param2)
   return(sigma_update)
 }
 ```
@@ -788,14 +788,14 @@ sim_y <- sim_dat[,1]
 ```
 # 14. In Sample Prediction Result
 ```{r warning=FALSE}
-sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 2000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.001, alpha_sig = 10, beta_sig = 4), control = list(node_min_size = 100))
+sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 10000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.01, alpha_sig = 1, beta_sig = 1), control = list(node_min_size = 100))
 pred_y_mean_all <- apply(sim_res$prediction, 2, mean)
 plot(sim_y, type = "p", col = "blue", lwd = 2, ylim = c(-6, 15), pch = 19)
 lines(pred_y_mean_all, type = "p", col = "red", pch = 19)
 legend("topleft",c("Posterior Mean","Real Data"), col = c("red","blue"), lty = c(1,1))
 plot(sim_res$num_node, type = 'l')
 plot(sim_res$log_mar_tree, type = 'l')
-
+plot(sim_res$log_like, type = 'l')
 ```
 
 # 15. Comparing with Rpart
@@ -804,8 +804,6 @@ plot(sim_res$log_mar_tree, type = 'l')
 library(rpart)
 rmod <- rpart(y~., data = sim_dat)
 yhat_rpart <- predict(rmod, sim_dat[,2:3])
-
-par(mfrow = c(1,2))
 #plot(yhat_rpart, type = 'p', pch = 19, col = "red")
 #lines(pred_y_mean_all, type = 'p', pch = 18, col = "blue")
 #legend("topright", c("rpart","cart"), pch = c(19,18), col = c("red","blue"))

@@ -510,10 +510,13 @@ fill_update_mu <- function(y, sigma, c, curr_tree){
   mean_vec <- NULL
   var_vec <- NULL
   # Update each mean and variance, since they are iid distributed, I can generate them together by using mvtnorm function and setting the covariance matrix as diagonal.
-  for (i in 1:length(ni)) {
-    mean_vec[i] <- (sum(y[curr_tree$node==names(ni)[i]])) / (ni[i] + c )
-    var_vec[i] <- sigma / (ni[i] + c )
-  }
+  mean_vec <- aggregate(x = y, by = list(curr_tree$node), FUN = sum)$V1 / (ni+c)
+  var_vec <- sigma / (ni+c)
+  
+#  for (i in 1:length(ni)) {
+#    mean_vec[i] <- (sum(y[curr_tree$node==names(ni)[i]])) / (ni[i] + c )
+#    var_vec[i] <- sigma / (ni[i] + c )
+#  }
   
   mu_update <- mvtnorm::rmvnorm(1, mean = mean_vec,  sigma = diag(var_vec, ncol = length(ni)))
   new_tree <- curr_tree
@@ -788,7 +791,7 @@ sim_y <- sim_dat[,1]
 ```
 # 14. In Sample Prediction Result
 ```{r warning=FALSE}
-sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 200, thin = 2),hyper = list(alpha = 0.95, beta = 1, c = 0.01, alpha_sig = 1, beta_sig = 1), control = list(node_min_size = 10))
+sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.01, alpha_sig = 1, beta_sig = 1), control = list(node_min_size = 1))
 pred_y_mean_all <- apply(sim_res$prediction, 2, mean)
 plot(sim_y, type = "p", col = "blue", lwd = 2, ylim = c(-6, 15), pch = 19)
 lines(pred_y_mean_all, type = "p", col = "red", pch = 19)
@@ -830,7 +833,7 @@ sum(res_cart^2)
 
 ```
 
-# 15. Comparing with rbart
+# 16. Comparing with rbart
 
 ```{r}
 library(rbart)

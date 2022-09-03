@@ -812,13 +812,20 @@ yhat_rpart <- predict(rmod, sim_dat[,2:3])
 plot(x = yhat_rpart, y = true_mean, type = 'p', pch = 19, col = "red")
 plot(x = pred_y_mean_all, y = true_mean, type = 'p', pch = 18, col = "blue")
 
-res_rpart <- (sim_dat[,1] - yhat_rpart)^2
-res_cart <- (pred_y_mean_all - sim_dat[,1])^2
-plot(res_rpart, type = 'p', pch = 19, col = "red", ylim = c(-0.1,60))
-lines(res_cart, type = 'p', pch = 18, col = "blue")
+res_rpart <- sim_dat[,1] - yhat_rpart
+res_cart <- pred_y_mean_all - sim_dat[,1]
+
+plot(res_rpart, type = 'p', pch = 19, col = "red", main = "rpart Residual Plot")
+
+plot(res_cart, type = 'p', pch = 18, col = "blue", main = "Cart Residual Plot")
+
 legend("topright", c("rpart","cart"), pch = c(19,18), col = c("red","blue"))
-sum(res_rpart)
-sum(res_cart)
+
+sd(res_rpart)
+sd(res_cart)
+
+sum(res_rpart^2)
+sum(res_cart^2)
 
 
 ```

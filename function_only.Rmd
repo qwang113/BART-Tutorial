@@ -838,6 +838,11 @@ bart_res <- rbart(sim_x, sim_y, ntree = 1, nskip = 200, ndpost = 2000, k = 2, po
 bart_predict <- predict(bart_res, sim_x)$mmean
 plot(x = bart_predict, y = true_mean)
 res_bart <- (bart_predict-sim_y)^2
-matrix(c(sum(res_bart), sum(res_cart), sum(res_rpart)), ncol = 3)
+```
 
+
+```{r}
+res_all <- matrix(c(sum(res_bart), sum(res_cart^2), sum(res_rpart^2)), ncol = 3)
+colnames(res_all) <- c("bart","cart","rpart")
+res_all
 ```

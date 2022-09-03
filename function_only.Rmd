@@ -788,7 +788,7 @@ sim_y <- sim_dat[,1]
 ```
 # 14. In Sample Prediction Result
 ```{r warning=FALSE}
-sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 10000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.01, alpha_sig = 1, beta_sig = 1), control = list(node_min_size = 100))
+sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 200, thin = 2),hyper = list(alpha = 0.95, beta = 1, c = 0.01, alpha_sig = 1, beta_sig = 1), control = list(node_min_size = 10))
 pred_y_mean_all <- apply(sim_res$prediction, 2, mean)
 plot(sim_y, type = "p", col = "blue", lwd = 2, ylim = c(-6, 15), pch = 19)
 lines(pred_y_mean_all, type = "p", col = "red", pch = 19)

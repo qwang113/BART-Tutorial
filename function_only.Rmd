@@ -791,7 +791,7 @@ sim_y <- sim_dat[,1]
 ```
 # 14. In Sample Prediction Result
 ```{r warning=FALSE}
-sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.01, alpha_sig = 1, beta_sig = 1), control = list(node_min_size = 1))
+sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.01, alpha_sig = 1, beta_sig = 1), control = list(node_min_size = 100))
 pred_y_mean_all <- apply(sim_res$prediction, 2, mean)
 plot(sim_y, type = "p", col = "blue", lwd = 2, ylim = c(-6, 15), pch = 19)
 lines(pred_y_mean_all, type = "p", col = "red", pch = 19)
@@ -815,8 +815,8 @@ yhat_rpart <- predict(rmod, sim_dat[,2:3])
 plot(x = yhat_rpart, y = true_mean, type = 'p', pch = 19, col = "red")
 plot(x = pred_y_mean_all, y = true_mean, type = 'p', pch = 18, col = "blue")
 
-res_rpart <- sim_dat[,1] - yhat_rpart
-res_cart <- pred_y_mean_all - sim_dat[,1]
+res_rpart <- yhat_rpart - true_mean
+res_cart <- pred_y_mean_all - true_mean
 
 plot(res_rpart, type = 'p', pch = 19, col = "red", main = "rpart Residual Plot")
 

@@ -32,7 +32,7 @@ for (i in 1:num_trees) {
   # Create column names for information matrix
   colnames(all_tree[[i]][[1]]) <- c("terminal","child_L","child_R","parent","split_variable","split_value","mu","node_size")
   
-  all_tree[[i]][[1]][1,] <- c(1, rep(NA, 5), 0, length(y))
+  all_tree[[i]][[1]][1,] <- c(1, rep(NA, 5), mean(y), length(y))
   
   
    
@@ -583,7 +583,7 @@ get_tree_prior <- function(tree, alpha, beta){
 train_bart <- function(x, y, num_trees = 1, # number of trees
                        control = list(node_min_size = 5), # control the minimum terminal node size
                        hyper = list(alpha = 0.95, beta = 2, c = 10, alpha_sig=1, beta_sig=1), # Give values to the hyperparameters
-                       init = list(sigma = 1), # sigma2 initial value
+                       init = list(sigma = 0.1), # sigma2 initial value
                        mcmc_par = list(iter = 1000, # number of total iterations
                                        burn = 100, # number of burn-in 
                                        thin = 1) # how to thin the chain
@@ -682,8 +682,8 @@ train_bart <- function(x, y, num_trees = 1, # number of trees
     
     type <- sample(c("grow","prune","change","swap"), 1)
     
-    if(i < max( floor(0.1*burn), 10) ){type = "grow"}
-    
+    #if(i < max( floor(0.1*burn), 10) ){type = "grow"}
+    if(nrow(curr_tree$info) <= 3){type = "grow"}
     # This is a proposed tree, but we need to figure out whether we should use this tree.
     new_tree <- update_tree(x,y, type = type, curr_tree = curr_tree, node_min_size = node_min_size)
     
@@ -771,27 +771,27 @@ set.seed(0)
 x_grid <- seq(from = 0.5, to = 9.5, by = 1)
 x1 <- sample(x_grid, 1000, replace = TRUE)
 x2 <- sample(1:4, replace = TRUE, size = 1000)
-y <- rep(NA, 1000)
-res <- 2*rnorm(1000, mean = 0, sd = 1)
+Y <- rep(NA, 1000)
+res <- 5*rnorm(1000, mean = 0, sd = 1)
 
-y[ x1<=5 & (x2==1 | x2==2)] <- 8
-y[ x1>5 & (x2==1 | x2==2)] <- 2
-y[ x1<=3 & (x2==3 | x2==4)] <- 1
-y[ (x1>3 & x1<=7) & (x2==3 | x2==4)] <- 5
-y[ x1>7 & (x2==3 | x2==4)] <- 8
+Y[ x1<=5 & (x2==1 | x2==2)] <- 8
+Y[ x1>5 & (x2==1 | x2==2)] <- 2
+Y[ x1<=3 & (x2==3 | x2==4)] <- 1
+Y[ (x1>3 & x1<=7) & (x2==3 | x2==4)] <- 5
+Y[ x1>7 & (x2==3 | x2==4)] <- 8
 
-true_mean <- y
+true_mean <- Y
 
 cat <- c("A","B","C","D")
 x2 <- cat[x2]
-sim_dat <- data.frame(y = as.numeric(y+res), x1= as.numeric(x1), x2=x2)
+sim_dat <- data.frame(y = as.numeric(Y+res), x1= as.numeric(x1), x2=x2)
 sim_x <- model.matrix(~ -1 + sim_dat[,2]+sim_dat[,3])  
 sim_y <- sim_dat[,1]
 
 ```
 # 14. In Sample Prediction Result
 ```{r warning=FALSE}
-sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.01, alpha_sig = 1, beta_sig = 1), control = list(node_min_size = 100))
+sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 200, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.01, alpha_sig = 10, beta_sig = 4), control = list(node_min_size = 100),init = list(sigma = 1))
 pred_y_mean_all <- apply(sim_res$prediction, 2, mean)
 plot(sim_y, type = "p", col = "blue", lwd = 2, ylim = c(-6, 15), pch = 19)
 lines(pred_y_mean_all, type = "p", col = "red", pch = 19)

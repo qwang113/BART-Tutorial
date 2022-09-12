@@ -729,11 +729,14 @@ fill_update_mu <- function(y, sigma, c, curr_tree){
   mean_vec <- NULL
   var_vec <- NULL
   # Update each mean and variance, since they are iid distributed, I can generate them together by using mvtnorm function and setting the covariance matrix as diagonal.
-  for (i in 1:length(ni)) {
-    mean_vec[i] <- (sum(y[curr_tree$node==names(ni)[i]])) /
-                   (ni[i] + c )
-    var_vec[i] <- sigma / (ni[i] + c )
-  }
+  
+   mean_vec <- aggregate(x = y, by = list(curr_tree$node), FUN = sum)$V1 / (ni+c)
+  var_vec <- sigma / (ni+c)
+  
+#  for (i in 1:length(ni)) {
+#    mean_vec[i] <- (sum(y[curr_tree$node==names(ni)[i]])) / (ni[i] + c )
+#    var_vec[i] <- sigma / (ni[i] + c )
+#  }
   
   mu_update <- mvtnorm::rmvnorm(1, mean = mean_vec,  sigma = diag(var_vec, ncol = length(ni)))
   new_tree <- curr_tree
@@ -791,8 +794,8 @@ get_tree_prior <- function(tree, alpha, beta){
   
   # Also, in each terminal node, it does not split 
   terminal_node <- which(as.numeric(tree$info[,"terminal"])==1)
-  for (i in 1:length(terminal_node)) {
-    log_prior <- log_prior + log(1-alpha*(1+level[terminal_node[i]])^(-beta))
+  for (j in 1:length(terminal_node)) {
+    log_prior <- log_prior + log(1-alpha*(1+level[terminal_node[j]])^(-beta))
     
   }
   
@@ -808,7 +811,7 @@ get_tree_prior <- function(tree, alpha, beta){
 ```{r}
 train_bart <- function(x, y, num_trees = 1, # number of trees
                        control = list(node_min_size = 5), # control the minimum terminal node size
-                       hyper = list(alpha = 0.95, beta = 2, c = 10, alpha_sig=1, beta_sig=1), # Give values to the hyperparameters
+                       hyper = list(alpha = 0.95, beta = 2, c = 0.01, alpha_sig=5, beta_sig=5), # Give values to the hyperparameters
                        init = list(sigma = 1), # sigma2 initial value
                        mcmc_par = list(iter = 1000, # number of total iterations
                                        burn = 100, # number of burn-in 
@@ -912,7 +915,7 @@ train_bart <- function(x, y, num_trees = 1, # number of trees
     
     # This is a proposed tree, but we need to figure out whether we should use this tree.
     new_tree <- update_tree(x,y, type = type, curr_tree = curr_tree, node_min_size = node_min_size)
-    new_tree <- fill_tree_details(new_tree, x)
+
     
     
     # New tree, compute the log of marginalized likelihood plus the log of the tree prior
@@ -1064,7 +1067,9 @@ sim_y <- sim_dat[,1]
 # 13. Simulated Prediction
 
 ```{r warning=FALSE}
-sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 1, c = 0.01, alpha_sig = 10, beta_sig = 4), control = list(node_min_size = 100))
+
+sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 3000, burn = 0, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.01, alpha_sig = 10, beta_sig = 4), control = list(node_min_size = 100),init = list(sigma = 0.01))
+sim_res$tree[[10]]$info[which(sim_res$tree[[10]]$info[,"terminal"]==1),"mu"]*sim_res$scale_y + sim_res$center_y
 ```
 
 
@@ -1076,6 +1081,7 @@ lines(pred_y_mean_all, type = "p", col = "red", lwd = 2)
 legend("topleft",c("Posterior Mean","Real Data"), col = c("red","blue"), lty = c(1,1))
 plot(sim_res$num_node, type = 'l')
 plot(sim_res$log_mar_tree, type = 'l')
+plot(sim_res$log_like, type = 'l')
 ```
 
 It seems that due to the big residual I added, the overall trend of y is not so obvious, however, I changed the residual to have a normal with mean 0 and var 0.01 and tried again, the result is as follows.
@@ -1102,9 +1108,9 @@ plot(x = pred_y_mean_all, y = true_mean, type = 'p', pch = 18, col = "blue")
 
 
 ```{r}
-res_rpart <- (sim_dat[,1] - yhat_rpart)^2
-res_cart <- (pred_y_mean_all - sim_dat[,1])^2
-plot(res_rpart, type = 'p', pch = 19, col = "red", ylim = c(-0.1,60))
+res_rpart <- (true_mean - yhat_rpart)^2
+res_cart <- (pred_y_mean_all - true_mean)^2
+plot(res_rpart, type = 'p', pch = 19, col = "red", ylim = c(-1,1))
 lines(res_cart, type = 'p', pch = 18, col = "blue")
 legend("topright", c("rpart","cart"), pch = c(19,18), col = c("red","blue"))
 sum(res_rpart)
@@ -1112,12 +1118,12 @@ sum(res_cart)
 ```
 # 15. Result of rbart Package
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 library(rbart)
-bart_res <- rbart(sim_x, sim_y, ntree = 1, nskip = 200, ndpost = 2000, k = 2, power = 2, base = 0.95)
+bart_res <- rbart(sim_x, sim_y, ntree = 1, nskip = 2000, ndpost = 1000, k = 2, power = 2, base = 0.95)
 bart_predict <- predict(bart_res, sim_x)$mmean
 plot(x = bart_predict, y = true_mean)
-res_bart <- (bart_predict-sim_y)^2
+res_bart <- (bart_predict-true_mean)^2
 matrix(c(sum(res_bart), sum(res_cart), sum(res_rpart)), ncol = 3)
 
 ```
@@ -1137,14 +1143,8 @@ x.tr <- sim_x[tr.index,]
 x.va <- sim_x[-tr.index,]
 y.tr <- sim_y[tr.index]
 y.va <- sim_y[-tr.index]
-cv.bart <- train_bart(x.tr, y.tr, mcmc_par = list(iter = 5000, burn = 200, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.1, alpha_sig = 1, beta_sig = 1, control = list(node_min_size = 50)))
+cv.bart <- train_bart(x.tr, y.tr, mcmc_par = list(iter = 1000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.1, alpha_sig = 10, beta_sig = 4, control = list(node_min_size = 100)))
 
-
-pred_y_mean_in <- apply(cv.bart$prediction, 2, mean)
-
-plot(y.tr, type = "p", col = "blue", lwd = 2, ylim = c(-6, 15))
-lines(pred_y_mean_in, type = "p", col = "red", lwd = 2)
-legend("topleft",c("Posterior Mean","Real Data"), col = c("red","blue"), lty = c(1,1))
 ```
 
 ```{r}
@@ -1182,7 +1182,7 @@ bart_oo_pred<- function(bart_result, x.va){
 oo_pred <- bart_oo_pred(cv.bart, x.va)
 pos_oo_mean <- apply(oo_pred, 2, mean)
 
-plot(y.va, col = "blue", pch = 19)
+plot(true_mean[-tr.index] , col = "blue", pch = 19, main = "Out of Sample Prediction", ylim = c(-1,10))
 lines(pos_oo_mean, col = "red", pch = 19, type = "p")
 
 
@@ -1198,12 +1198,24 @@ colnames(x.va) <- c("x1","A","B","C","D")
 cv_mod <- rpart(y ~., data = tr_dat)
 rpart_pred <- predict(cv_mod, newdata = as.data.frame(x.va))
 
-plot(rpart_pred, type='p', col = "blue", pch = 19, ylim = c(-10,20))
+
+par(mfrow = c(2,2))
+
+
+plot(rpart_pred, type='p', col = "blue", pch = 19, ylim = c(-1,10), ylab = "y")
 lines(pos_oo_mean, col = "red", pch = 19, type = "p")
-lines(y.va, col = "green", pch = 19, type = "p")
-legend("topright", c("CART","RPART","REAL"), col = c("red","blue","green"), pch = c(19,19,19))
-pred_err_rpart <- sum((rpart_pred-y.va)^2)
-pred_err_cart <- sum((pos_oo_mean-y.va)^2)
+lines(true_mean[-tr.index], col = "green", pch = 19, type = "p")
+
+
+plot(rpart_pred, type='p', col = "blue", pch = 19, ylim = c(-1,10), ylab = "y", main = "rpart")
+plot(pos_oo_mean, col = "red", pch = 19, type = "p", ylab = "y", main = "cart", ylim = c(-1,10))
+plot(true_mean[-tr.index], col = "green", pch = 19, type = "p", ylab = "y" ,main = "True Mean", ylim = c(-1,10))
+
+
+
+
+pred_err_rpart <- sum((rpart_pred - true_mean[-tr.index])^2)
+pred_err_cart <- sum((pos_oo_mean - true_mean[-tr.index])^2)
 paste("pred_err_cart = ",pred_err_cart)
 paste("pred_err_rpart = ",pred_err_rpart)
 ```

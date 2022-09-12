@@ -835,7 +835,7 @@ sum(res_cart^2)
 
 # 16. Comparing with rbart
 
-```{r}
+```{r, message=FALSE}
 library(rbart)
 bart_res <- rbart(sim_x, sim_y, ntree = 1, nskip = 200, ndpost = 2000, k = 2, power = 2, base = 0.95)
 bart_predict <- predict(bart_res, sim_x)$mmean

@@ -473,25 +473,26 @@ get_like <- function(curr_tree, x, y, sigma){
   
 }
 ```
-# 9. Tree Marginal Function
+# 9. Tree Marginal Function (change)
 ```{r}
 tree_marginal <- function(tree, x, y, c, alpha_sig, beta_sig){
   # Calculate the marginal distribution for the tree to get a sample from.
   I <- length(table(tree$node))
   ni <- table(tree$node)
   terminal_node <- which(as.numeric(tree$info[,"terminal"]) == 1 )
-  part1 <-  -1/2 * sum(log(ni+c))
-
   
-  M <- 0
+  part1 <-  -1/2 * sum(log(ni+c)) + length(terminal_node)/2*log(c)
+  
+   M <- 2*beta_sig
   
   for (i in 1:I) {
     y_i <- y[tree$node==terminal_node[i]]
-    M <- M + (sum(y_i^2) - sum(y_i)^2/(ni[i] + c))/2
-
+    
+    M <- M + (ni[i]-1)*var(y_i) + (ni[i]*c)/(ni[i]+c)*mean(y_i)^2
+    
   }
-
-  part2 <- -(length(y)/2 + alpha_sig)*log(beta_sig+M)
+  
+  part2 <- -(length(y)/2 + alpha_sig)*log(M)
   
   # Get the log marginal likelihood
   Log_mar <- part1 + part2
@@ -510,15 +511,17 @@ fill_update_mu <- function(y, sigma, c, curr_tree){
   mean_vec <- NULL
   var_vec <- NULL
   # Update each mean and variance, since they are iid distributed, I can generate them together by using mvtnorm function and setting the covariance matrix as diagonal.
-  mean_vec <- aggregate(x = y, by = list(curr_tree$node), FUN = sum)$V1 / (ni+c)
-  var_vec <- sigma / (ni+c)
+ for (i in 1:length(ni)) {
+    mean_vec[i] <- (mean(y[curr_tree$node==names(ni)[i]])*ni[i]/sigma) * (sigma/(c+ni[i]))
+    var_vec[i] <- sigma/(c+ni[i])
+  }
   
 #  for (i in 1:length(ni)) {
 #    mean_vec[i] <- (sum(y[curr_tree$node==names(ni)[i]])) / (ni[i] + c )
 #    var_vec[i] <- sigma / (ni[i] + c )
 #  }
   
-  mu_update <- mvtnorm::rmvnorm(1, mean = mean_vec,  sigma = diag(var_vec, ncol = length(ni)))
+  mu_update <- rnorm(length(ni), mean=mean_vec, sd=sqrt(var_vec))
   new_tree <- curr_tree
   
   new_tree$info[which(as.numeric(new_tree$info[,"terminal"])==1), "mu"] <- mu_update
@@ -599,15 +602,6 @@ train_bart <- function(x, y, num_trees = 1, # number of trees
   # Get the columns that are numeric
   # Create a holder
   
-  if(is.null(ncol(x))){
-    center_x_num = mean(x)
-    scale_x_num = sd(x)
-    }else{
-      center_x <- apply(x, 2, mean)
-      scale_x <- apply(x, 2, sd)}
-  
-    x <- scale(x)
-  
       center_y <- mean(y)
       scale_y <- sd(y)
       y <- scale(y)
@@ -687,7 +681,13 @@ train_bart <- function(x, y, num_trees = 1, # number of trees
     # This is a proposed tree, but we need to figure out whether we should use this tree.
     new_tree <- update_tree(x,y, type = type, curr_tree = curr_tree, node_min_size = node_min_size)
     
+    # Get the number of terminal nodes in current tree and new tree for further Metropolis "Grow" use
+    nterm_new <- sum(new_tree$info[,"terminal"]==1)
+    nterm_curr <- sum(curr_tree$info[,"terminal"]==1)
     
+    # Get the pair of terminal nodes that share the same parent for further Metropolis "Prune" use
+    np_new <- sum(table(new_tree$info[new_tree$info[,"terminal"]==1,"parent"])==2)
+    np_curr <- sum(table(curr_tree$info[curr_tree$info[,"terminal"]==1,"parent"])==2)
     # New tree, compute the log of marginalized likelihood plus the log of the tree prior
     # First, subtract the mean of the tree
     
@@ -700,7 +700,15 @@ train_bart <- function(x, y, num_trees = 1, # number of trees
     
     # Get the old log probability
     l_old <- tree_marginal(curr_tree, x, y, c, alpha_sig, beta_sig) + get_tree_prior(curr_tree, alpha = alpha, beta = beta)
-    
+    # Notice that if the updating method is grow or prune, the process is not symetric.
+    if(type=="grow"){
+      l_new <- l_new + log(nterm_curr) 
+      l_old <- l_old + log(np_new)
+    }
+    if(type=="prune"){
+      l_new <- l_new + log(np_curr)
+      l_old <- l_old + log(nterm_new)
+    }
     
     # Since the proposal is symmetric, we can record the transition probability as follows:
     a <- exp(l_new - l_old)
@@ -748,8 +756,8 @@ train_bart <- function(x, y, num_trees = 1, # number of trees
     tree = tree_store,
     sigma2_scaled = sigma2_store,
     log_like = log_like_store,
-    center_x = center_x,
-    scale_x = scale_x,
+    #center_x = center_x,
+    #scale_x = scale_x,
     center_y = center_y,
     scale_y = scale_y,
     iter = iter,
@@ -772,7 +780,7 @@ x_grid <- seq(from = 0.5, to = 9.5, by = 1)
 x1 <- sample(x_grid, 1000, replace = TRUE)
 x2 <- sample(1:4, replace = TRUE, size = 1000)
 Y <- rep(NA, 1000)
-res <- 5*rnorm(1000, mean = 0, sd = 1)
+res <- 2*rnorm(1000, mean = 0, sd = 1)
 
 Y[ x1<=5 & (x2==1 | x2==2)] <- 8
 Y[ x1>5 & (x2==1 | x2==2)] <- 2
@@ -791,7 +799,7 @@ sim_y <- sim_dat[,1]
 ```
 # 14. In Sample Prediction Result
 ```{r warning=FALSE}
-sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 200, thin = 2),hyper = list(alpha = 0.95, beta = 2, c = 0.01, alpha_sig = 10, beta_sig = 4), control = list(node_min_size = 100),init = list(sigma = 1))
+sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 1.5, c = 0.01, alpha_sig = 10, beta_sig = 4), control = list(node_min_size = 1),init = list(sigma = 0.01))
 pred_y_mean_all <- apply(sim_res$prediction, 2, mean)
 plot(sim_y, type = "p", col = "blue", lwd = 2, ylim = c(-6, 15), pch = 19)
 lines(pred_y_mean_all, type = "p", col = "red", pch = 19)
@@ -799,6 +807,7 @@ legend("topleft",c("Posterior Mean","Real Data"), col = c("red","blue"), lty = c
 plot(sim_res$num_node, type = 'l')
 plot(sim_res$log_mar_tree, type = 'l')
 plot(sim_res$log_like, type = 'l')
+plot(sim_x[,1], pred_y_mean_all)
 ```
 
 # 15. Comparing with Rpart
@@ -849,3 +858,8 @@ res_all <- matrix(c(sum(res_bart), sum(res_cart^2), sum(res_rpart^2)), ncol = 3)
 colnames(res_all) <- c("bart","cart","rpart")
 res_all
 ```
+
+
+# 17. Real Data CV
+
+# 18. 

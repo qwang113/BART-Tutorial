@@ -799,7 +799,7 @@ sim_y <- sim_dat[,1]
 ```
 # 14. In Sample Prediction Result
 ```{r warning=FALSE}
-sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 2000, thin = 2),hyper = list(alpha = 0.95, beta = 1.5, c = 0.01, alpha_sig = 10, beta_sig = 4), control = list(node_min_size = 1),init = list(sigma = 0.01))
+sim_res <- train_bart(x = sim_x, y = sim_y, mcmc_par = list(iter = 1000, burn = 10000, thin = 2),hyper = list(alpha = 0.95, beta = 1.5, c = 0.01, alpha_sig = 10, beta_sig = 4), control = list(node_min_size = 10),init = list(sigma = 0.01))
 pred_y_mean_all <- apply(sim_res$prediction, 2, mean)
 plot(sim_y, type = "p", col = "blue", lwd = 2, ylim = c(-6, 15), pch = 19)
 lines(pred_y_mean_all, type = "p", col = "red", pch = 19)
@@ -849,7 +849,7 @@ library(rbart)
 bart_res <- rbart(sim_x, sim_y, ntree = 1, nskip = 200, ndpost = 2000, k = 2, power = 2, base = 0.95)
 bart_predict <- predict(bart_res, sim_x)$mmean
 plot(x = bart_predict, y = true_mean)
-res_bart <- (bart_predict-sim_y)^2
+res_bart <- (bart_predict-true_mean)^2
 ```
 
 
@@ -861,5 +861,43 @@ res_all
 
 
 # 17. Real Data CV
+```{r}
+mpg_data <- read.table(here::here("autompg.txt"), header = FALSE)
+colnames(mpg_data) <- c("mpg", "cylinders", "displacement", "horsepower","weight","acceleration","year","origin","name")
+mpg_all <- mpg_data[,-ncol(mpg_data)]
+mpg_all$origin <- as.character(mpg_all$origin)
+mpg_all$horsepower <- as.numeric(mpg_all$horsepower)
+mpg_all <- na.omit(mpg_all)
+```
+
+```{r}
+mpg_y <- mpg_all$mpg
+mpg_x <- mpg_all[,-1]
+attach(mpg_x)
+mpg_x_mat <- model.matrix(~-1+cylinders+displacement+horsepower+weight+acceleration+year+origin)
+```
+
+```{r}
+mpg_res <- train_bart(mpg_x_mat,mpg_y,control = list(node_min_size = 5), mcmc_par = list(iter = 1000, burn = 2000, 
+ thin = 2), hyper = list(alpha = 0.95, beta = 1, alpha_sig = 10, beta_sig = 10, c = 0.01))
+```
+
+
+```{r}
+mpg_prediction <- apply(mpg_res$prediction, 2, mean)
+plot(mpg_y, type = "b", col = "red")
+lines(mpg_prediction, type = "b", col = "blue")
+cart_sse <- sum((mpg_y - mpg_prediction)^2) 
+```
+```{r}
+mpg_rpart <- rpart(mpg ~., data = mpg_all)
+rpart_prediction <- predict(mpg_rpart, mpg_all[,-1])
+plot(mpg_y, type = "b", col = "red")
+lines(rpart_prediction, type = "b", col = "blue")
+rpart_sse <- sum((mpg_y - rpart_prediction)^2)
+rpart_sse
+cart_sse
+```
+
 
 # 18. 

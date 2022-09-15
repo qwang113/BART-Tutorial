@@ -940,5 +940,31 @@ bart_oo_pred<- function(bart_result, x.va){
 }
 ```
 
+```{r}
+oo_bart_mpg <- train_bart(mpg_tr_x, mpg_tr_y, control = list(node_min_size = 5), mcmc_par = list(iter = 1000, burn = 2000, thin = 2), hyper = list(alpha = 0.95, beta = 1, alpha_sig = 10, beta_sig = 10, c = 0.01))
+```
+```{r}
+oo_bart_pred <- bart_oo_pred(oo_bart_mpg, mpg_va_x)
+oo_bart_pred <- apply(oo_bart_pred, 2, mean)
+library(rpart)
+mpg_tr <- as.data.frame(cbind(mpg_tr_y, mpg_tr_x))
+oo_rpart_mpg <- rpart(mpg_tr_y~., data = mpg_tr)
+oo_rpart_pred <- predict(oo_rpart_mpg, as.data.frame(mpg_va_x))
+
+plot(mpg_va_y, type = 'b', col = "red", pch = 19)
+lines(oo_rpart_pred, type = 'b', col = "blue", pch = 19)
+lines(oo_bart_pred, type = 'b', col = "green", pch = 19)
+legend("topleft", c("real","rpart","cart"), col = c("red","blue","green"), pch = rep(19,3))
+
+
+oo_sse_bart <- sum((oo_bart_pred - mpg_va_y)^2)
+oo_sse_rpart <- sum((oo_rpart_pred - mpg_va_y)^2)
+
+oo_sse_bart
+oo_sse_rpart
+```
+
+
+
 
 

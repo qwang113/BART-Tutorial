@@ -890,6 +890,7 @@ lines(mpg_prediction, type = "b", col = "blue")
 cart_sse <- sum((mpg_y - mpg_prediction)^2) 
 ```
 ```{r}
+library(rpart)
 mpg_rpart <- rpart(mpg ~., data = mpg_all)
 rpart_prediction <- predict(mpg_rpart, mpg_all[,-1])
 plot(mpg_y, type = "b", col = "red")
@@ -900,4 +901,44 @@ cart_sse
 ```
 
 
-# 18. 
+# 18. Out of Smaple Real Data Prediction
+
+
+```{r}
+mpg_tr_ind <- sample(size = floor(0.8*nrow(mpg_all)), 1:nrow(mpg_all), replace = FALSE)
+mpg_tr_x <- mpg_x_mat[mpg_tr_ind,]
+mpg_tr_y <- mpg_all[mpg_tr_ind,1]
+mpg_va_x <- mpg_x_mat[-mpg_tr_ind,]
+mpg_va_y <- mpg_all[-mpg_tr_ind,1]
+```
+
+
+```{r}
+bart_oo_pred<- function(bart_result, x.va){
+  
+  store_size <- length(bart_result$tree)
+  center_y <- bart_result$center_y
+  scale_y <- bart_result$scale_y
+
+ 
+  pred <- matrix(NA, nrow = store_size, ncol = nrow(x.va))
+  for (i in 1:store_size) {
+    curr_tree <- bart_result$tree[[i]]
+    curr_sig <- bart_result$sigma2_scaled[i]
+    all_mu <- curr_tree$info[,"mu"]
+    pred_node <- fill_tree_details(curr_tree, x.va)$node
+    pred_mean <- all_mu[pred_node]
+    pred_scaled <- rnorm(n = nrow(x.va), mean = pred_mean, sd = sqrt(curr_sig))
+    pred[i,] <- pred_scaled * scale_y + center_y
+    
+    
+  }
+  
+  return(pred)
+  
+  
+}
+```
+
+
+
